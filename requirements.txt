@@ -1,0 +1,98 @@
+# Pinned dependencies for template.ipynb (price-elasticity modeling pipeline).
+#
+# Exact pins (not ranges) on purpose: the elasticity numbers come out of an
+# XGBoost double-ML stage and a NumPyro/JAX Bayesian MCMC sampler. Different
+# versions of these libraries can change tree structure or sampler behavior
+# and produce different elasticities from identical code/data/seeds.
+#
+# Required Python: 3.11 — pins captured from the PRODUCTION kernel venv
+# (Python 3.11.15, projects-venv-py311), the environment that produced all
+# validated elasticity deliverables. The notebook's saved kernelspec (3.11.15)
+# is correct and canonical.
+#
+# To reproduce this environment on another machine:
+#   python3.11 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt
+
+numpy==2.4.6
+pandas==3.0.3
+scipy==1.17.1
+scikit-learn==1.6.1
+statsmodels==0.14.6
+xgboost==3.2.0
+econml==0.16.0
+jax==0.10.2
+jaxlib==0.10.2
+numpyro==0.21.0
+matplotlib==3.11.0
+openpyxl==3.1.5
+xlsxwriter==3.2.9
+tqdm==4.68.3
+holidays==0.99
+cryptography==50.0.0
+psutil==7.2.2
+ipython==9.7.0
+ipywidgets==8.1.8
+snowflake-connector-python==4.7.1
+# Postgres persistence layer (db.py / models.py / alembic) — optional pipeline output
+# persistence, gated behind config['persist_to_db'] (default False). Not required for
+# the core elasticity math. psycopg2 remains the DBAPI driver, now under SQLAlchemy's
+# postgresql+psycopg2 URL rather than being used directly.
+sqlalchemy==2.0.51
+alembic==1.18.5
+python-dotenv==1.2.2
+psycopg2-binary==2.9.10
+
+# Per-brand YAML configs (configs/<BRAND_DB>.yaml via config_loader.py). Previously an
+# implicit jupyter transitive; config_loader imports it directly so it is pinned.
+PyYAML==6.0.3
+
+# Post-deliverable validation (gc_validation.deliverable, the cell-74 trigger).
+# It resolves the run's brand config through `gc_core.config.loader`, which parses
+# configs/brands/*.yaml into the `BrandConfig` pydantic model and reshapes it back
+# with `to_legacy_dict()`. gc-core declares pydantic only under its `config` EXTRA,
+# so nothing pulled it into this env transitively and the import failed at run time.
+#
+# The consequence was not a skipped check but five wrong ones: `resolve_context()`
+# raises on that import, and it is the single call that derives
+# ELASTICITY_RECON_ANCHOR_BRAND / _CACHE_DIR / _CATEGORY / _TIER. A1 then reconciled
+# every pooled SKU (competitors included) against an own-brand-only dashboard table
+# and reported `0/N matched` as a VETO fail; A4 looked for the comp-set CSV under the
+# module's Zydus_Sugarfree default; A2/B1 never ran. Every in-run validation scored
+# ~5% FAIL on deliverables that were fine -- verified on GLENMARK, whose elasticities
+# are byte-identical to a manually-validated copy that scored 43%.
+#
+# Same pin as requirements-lock.txt (and already installed in the ds-pipelines image,
+# which is why the libs pipeline was never affected) -- keep the two in step.
+pydantic==2.13.4
+
+# LLM band resolver (gc_validation.deliverable.llm_bands -> gc_core.llm.gateway).
+# Picks the category/tier reference band per brand at validation time.
+#
+# `gc_core.llm.gateway` imports this LAZILY and by design -- importing the module
+# must work without the SDK. Lazy defers WHEN the ImportError lands, not WHETHER:
+# the call site still executes `from claude_agent_sdk import ...`, so with the SDK
+# absent every run resolved `category=(none) tier=(none)` and check C2 judged every
+# brand against the F&B default [-3.5, -0.2] -- right for a laddoo brand, wrong for
+# pharma or electronics. Visible in the report as
+# "LLM call failed (ModuleNotFoundError: No module named 'claude_agent_sdk')"
+# (LALSWEETS, 2026-08-12).
+#
+# NOT SUFFICIENT ON ITS OWN: this SDK is a client for the Claude Code CLI (hence
+# the gateway's `CLINotFoundError` handling), so the image also needs Node + the
+# CLI -- see dags/Dockerfile.template. Pinned to the version this repo runs
+# against locally, not `latest`: the resolver's output selects the band a client
+# deliverable is judged by, so it moves deliberately.
+claude-agent-sdk==0.2.135
+
+# Install the gc_core package itself (the pydantic/PyYAML pins above only cover
+# ONE PART of it, not the whole package).
+#
+# Bug this fixes: cell 63 (comp-subcategory fold-in) runs `from gc_core.llm.gateway
+# import ask`, but gc_core was never actually installed here -- so every run crashed
+# with "ModuleNotFoundError: No module named 'gc_core'" instead of just skipping that
+# step. (Dagster run 33420f8c, qcom_elasticity_op_job, 2026-08-19.)
+#
+# Same fix as config-agent/requirements.txt: install it directly from its folder in
+# this repo (it's not published to PyPI).
+-e ../ds-models/libs/gc_core
