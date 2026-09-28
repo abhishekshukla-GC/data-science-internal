@@ -15,6 +15,8 @@ of one long script.
 - `Notebooks/` — the `.ipynb` files, numbered by stage (e.g.
   `01_elasticity.ipynb`, `02_...ipynb`). This is where the real work happens.
 - `Input/` — raw input data for the pipeline.
+  - `Input/brand_specific/` — per-brand inputs (e.g. brand config YAMLs, SKU lists).
+  - `Input/common/` — inputs shared across all brands.
 - `Output/` — each notebook's saved result, read as input by the next
   notebook in the sequence.
 
