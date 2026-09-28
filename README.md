@@ -19,6 +19,7 @@ of one long script.
   - `Input/common/` — inputs shared across all brands.
 - `Output/` — each notebook's saved result, read as input by the next
   notebook in the sequence.
+- `Learning/` — running log of setup steps and decisions taken on this repo.
 
 ## Environment setup
 
